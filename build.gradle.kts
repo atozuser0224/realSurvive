@@ -5,6 +5,10 @@ plugins {
   id("io.papermc.paperweight.userdev") version "2.0.0-beta.13"
   id("xyz.jpenilla.run-paper") version "2.3.1" // Adds runServer and runMojangMappedServer tasks for testing
   id("xyz.jpenilla.resource-factory-bukkit-convention") version "1.2.0" // Generates plugin.yml based on the Gradle config
+
+  // Shades and relocates dependencies into our plugin jar. See https://imperceptiblethoughts.com/shadow/introduction/
+  id("com.gradleup.shadow") version "8.3.5"
+  kotlin("jvm")
 }
 
 group = "io.papermc.paperweight"
@@ -29,6 +33,14 @@ dependencies {
   paperweight.paperDevBundle("1.21.4-R0.1-SNAPSHOT")
   // paperweight.foliaDevBundle("1.21.4-R0.1-SNAPSHOT")
   // paperweight.devBundle("com.example.paperfork", "1.21.4-R0.1-SNAPSHOT")
+
+  // Shadow will include the runtimeClasspath by default, which implementation adds to.
+  // Dependencies you don't want to include go in the compileOnly configuration.
+  // Make sure to relocate shaded dependencies!
+  implementation("dev.jorel:commandapi-bukkit-kotlin:9.5.2")
+  implementation("dev.jorel:commandapi-bukkit-shade:9.5.2")
+  implementation(kotlin("stdlib-jdk8"))
+
 }
 
 tasks {
@@ -49,6 +61,21 @@ tasks {
     outputJar = layout.buildDirectory.file("libs/PaperweightTestPlugin-${project.version}.jar")
   }
    */
+
+  shadowJar {
+    // helper function to relocate a package into our package
+    fun reloc(pkg: String) = relocate(pkg, "io.papermc.paperweight.testplugin.dependency.$pkg")
+
+    // relocate cloud and it's transitive dependencies
+    reloc("org.incendo.cloud")
+    reloc("io.leangen.geantyref")
+    dependencies {
+      include(dependency("dev.jorel:commandapi-bukkit-shade:9.5.2"))
+    }
+
+    // TODO: Change this to my own package name
+    relocate("dev.jorel.commandapi", "io.papermc.paperweight.testplugin.commandapi")
+  }
 }
 
 // Configure plugin.yml generation
@@ -58,4 +85,10 @@ bukkitPluginYaml {
   load = BukkitPluginYaml.PluginLoadOrder.STARTUP
   authors.add("Author")
   apiVersion = "1.21.4"
+}
+repositories {
+  mavenCentral()
+}
+kotlin {
+  jvmToolchain(21)
 }
